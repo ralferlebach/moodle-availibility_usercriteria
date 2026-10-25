@@ -11,10 +11,11 @@
 /makefile           export-ignore
 /phpcs.xml          export-ignore
 
-# --- Never distribute: internal documentation -----------------------------
-# Working notes, session logs and planning material are not product docs.
-# README.md and CHANGELOG.md ship (they are top level).
-/docs               export-ignore
+# --- Never distribute: internal working notes ----------------------------
+# Session logs and prompt templates are working material. The documentation in docs/ ships: README.md
+# links to it, and every relative link in the package must resolve (checked by tools/check_links.py in CI).
+/docs/sessions          export-ignore
+/docs/prompt-templates  export-ignore
 
 # --- Never distribute: developer tooling ----------------------------------
 /tools              export-ignore

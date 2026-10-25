@@ -47,3 +47,4 @@ tests/load/k6
 tests/load/*.tgz
 tests/load/*.jtl
 tests/load/.load-env
+/build/

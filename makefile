@@ -1,4 +1,4 @@
-# Makefile for {{COMPONENT}}
+# Makefile for availability_usercriteria
 # Mirrors the moodle-plugin-ci check suite used in GitHub Actions.
 #
 # Targets:
@@ -35,7 +35,7 @@
 #   make jmeter-setup     — download Apache JMeter
 #
 # Paths are auto-detected from the makefile's own location.
-# The plugin lives at <MOODLE_ROOT>/{{PLUGINPATH}}/ —
+# The plugin lives at <MOODLE_ROOT>/availability/condition/usercriteria/ —
 # levels below the Moodle root — so both PLUGIN_DIR and MOODLE_ROOT are
 # derived automatically and work on any installation.
 # Override on the command line if necessary:
@@ -44,8 +44,8 @@
 THIS_DIR      := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 PLUGIN_DIR    ?= $(THIS_DIR)
 MOODLE_ROOT   ?= $(abspath $(PLUGIN_DIR)/../..)
-PLUGIN_NAME   ?= {{COMPONENT}}
-PLUGIN_REL    ?= {{PLUGINPATH}}
+PLUGIN_NAME   ?= availability_usercriteria
+PLUGIN_REL    ?= availability/condition/usercriteria
 PHP           ?= $(shell which php 2>/dev/null || echo /usr/bin/php)
 PHPCS         ?= phpcs
 PHPCBF        ?= phpcbf
@@ -268,7 +268,7 @@ phpunit:
 	fi
 
 # --- Browser collaboration tests (Playwright) ------------------------------
-# Need a RUNNING Moodle site with {{COMPONENT}} installed. seed.php creates the
+# Need a RUNNING Moodle site with availability_usercriteria installed. seed.php creates the
 # course-mode fixture and prints the exports (incl. FLEXACCESS_BASE_URL from the
 # site's wwwroot), so no manual base URL is needed for a local install.
 
@@ -329,12 +329,12 @@ jmeter: clear jmeter-setup
 		echo "  or pass TOKEN/WORKSPACEID/CMID yourself. See tests/load/README.md."; \
 		exit 1; \
 	fi
-	cd $(LOAD_DIR) && $(JMETER) -n -t {{PLUGINNAME}}-read-endpoints.jmx \
+	cd $(LOAD_DIR) && $(JMETER) -n -t usercriteria-read-endpoints.jmx \
 		-Jbase_url='$(BASE_URL)' -Jtoken='$(TOKEN)' \
 		-Jworkspaceid='$(WORKSPACEID)' -Jcmid='$(CMID)' -Jrevision='$(REVISION)' \
 		-Jthreads='$(THREADS)' -Jrampup='$(RAMPUP)' -Jloops='$(LOOPS)' \
 		-Jmaxduration='$(MAXDURATION)' \
-		-l {{PLUGINNAME}}-load-results.jtl
+		-l usercriteria-load-results.jtl
 	@echo ""
-	@echo "Results written to $(LOAD_DIR)/{{PLUGINNAME}}-load-results.jtl"
+	@echo "Results written to $(LOAD_DIR)/usercriteria-load-results.jtl"
 

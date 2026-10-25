@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-    <ruleset name="{{COMPONENT}}">
-        <description>PHPCS configuration for {{COMPONENT}}.</description>
+    <ruleset name="availability_usercriteria">
+        <description>PHPCS configuration for availability_usercriteria.</description>
         <rule ref="moodle"/>
         <exclude-pattern>*/tools/*</exclude-pattern>
         <exclude-pattern>*/vendor/*</exclude-pattern>

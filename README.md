@@ -1,180 +1,94 @@
-moodle-[component_pluginname]
-=============================
+moodle-availability_usercriteria
+================================
 
-[![Moodle Plugin CI](https://github.com/moodle-an-hochschulen/moodle-[component_pluginname]/actions/workflows/moodle-plugin-ci.yml/badge.svg?branch=main)](https://github.com/moodle-an-hochschulen/moodle-[component_pluginname]/actions?query=workflow%3A%22Moodle+Plugin+CI%22+branch%3Amain)
+Restrict access to activities and sections by characteristics of the person: identity, profile fields,
+roles, enrolment, login and course access, progress and course grade. One small availability condition plugin
+for Moodle's *Restrict access* - no reports, no dashboards, no enrolment.
 
-[A short description of the plugin]
+**Status:** 0.3.0, `MATURITY_ALPHA`. Not yet accepted for production. What has actually been run, on which
+Moodle and database versions, is listed in the [test report](docs/Testbericht-0.3.0.md); what is
+implemented and what is not in the [requirements matrix](docs/Anforderungsmatrix.md).
 
 
 Requirements
 ------------
 
-This plugin requires Moodle [Version]+
-
-
-Motivation for this plugin
---------------------------
-
-[The motivation to write this plugin]
+Moodle 4.5 to 5.3. PHP as required by the Moodle version; tested with PHP 8.3 only.
 
 
 Installation
 ------------
 
 Install the plugin like any other plugin to folder
-[path to plugin]
 
-See http://docs.moodle.org/en/Installing_plugins for details on installing Moodle plugins
+    availability/condition/usercriteria
 
+(Moodle 5.1 and later: `public/availability/condition/usercriteria`).
 
-Usage & Settings
-----------------
+See http://docs.moodle.org/en/Installing_plugins for details on installing Moodle plugins.
 
-After installing the plugin, it is ready to use without the need for any configuration.
 
-==OR==
+Usage
+-----
 
-After installing the plugin, it does not do anything to Moodle yet.
+Open the settings of an activity or section, expand *Restrict access*, choose *Add restriction...* and
+then *User criteria*. A condition is one *characteristic*, one *operator* and a *value*. Moodle's own
+restriction sets combine conditions with AND, OR and NOT, also with Moodle's own conditions.
 
-To configure the plugin and its behaviour, please visit:
-Site administration -> [path to the plugin settings]
+| Category | Characteristics |
+|---|---|
+| Identity | user ID, username, first name, last name |
+| Profile fields | ID number, institution, department, city, country, language, email, phone, mobile phone, address, middle name, alternate name, custom profile fields (text fields optionally compared as numbers) |
+| Roles | role assigned directly in the course, effective role in the course, system role |
+| Enrolment | enrolment method, enrolment start |
+| Login and access | last site login, last course access |
+| Progress and grade | completed activities, finished activities (also "not passed"), course grade in percent |
 
-There, you find [x] settings:
+Operators depend on the type: text (equals, contains, starts/ends with ...), number (=, >, >=, ..., between with
+selectable limits), time (before, after, between, within the last X days, longer ago than X days) and selection
+(is one of, is none of). *Is not available* and *is available* ask explicitly for missing data.
 
-[Describe the settings]
+### Not included
 
-If you want to learn more about using [plugin type] plugins in Moodle, please see https://docs.moodle.org/en/[plugintype].
+Usage time in the course (L-09), time from course start to completion (L-10) and relative criteria such as
+top N or percentiles (L-11) are **not implemented**. See the [requirements matrix](docs/Anforderungsmatrix.md).
 
+### Semantics worth knowing
 
-Capabilities
-------------
+* **Missing data never releases anything**, also not when negated. Use *is not available* to ask for missing
+  data on purpose. An ungraded person is missing, not zero.
+* **Enrolments:** a criterion is met if at least one *active* enrolment meets it. Without an active enrolment
+  the value is missing, so "is none of" is not met either.
+* **Course grade:** the course total in percent, as Moodle's own grade condition computes it (overrides,
+  hidden and locked grades, scales). Two deliberate differences, both closing rather than opening access: a
+  total waiting for a regrade is not decided, and NOT with a missing grade does not release.
+* **Completed activities:** tracked activities that are visible (not hidden, not in a hidden section, not
+  being deleted). Access restrictions of the counted activities are not checked.
+* **Last course access** comes from Moodle's last-access record, not from the logs.
+* **Time** is always taken from Moodle's clock API (`\core\clock`), so tests can freeze and move it.
+* Restriction messages never show values of people; identity and contact criteria are not spelled out at all.
 
-This plugin also introduces these additional capabilities:
+Details: [permissions](docs/Berechtigungen.md), [privacy](docs/Datenschutz.md), [technical design and cache
+validity](docs/Technisches_Blueprint.md).
 
-* **[component]/[pluginname]::[capability]** - [Short description of the capability and its default assignation]
-* **[component]/[pluginname]::[capability]** - [Short description of the capability and its default assignation]
 
-==OR==
+Capabilities, tasks and data
+----------------------------
 
-This plugin does not add any additional capabilities.
+No capabilities of its own (editing restrictions is limited by Moodle), no scheduled tasks, no tables. Values
+read during access checks are kept in a request cache only; Moodle events about changed data clear it.
 
 
-Scheduled Tasks
----------------
-
-This plugin also introduces these additional scheduled tasks:
-
-* **\[pluginname]\task\[taskname]** - [Short description of the scheduled task]\ By default, the task is disabled.
-
-==AND/OR==
-
-This plugin also introduces these additional scheduled tasks:
-
-* **\[pluginname]\task\[taskname]** - [Short description of the scheduled task]\ By default, the task is enabled and runs [the standard schedule].
-
-==OR==
-
-This plugin does not add any additional scheduled tasks.
-
-
-How this plugin works [ / Pitfalls]
------------------------------------
-
-[How it works]
-
-
-Theme support
--------------
-
-This plugin is developed and tested on Moodle Core's Boost theme.
-It should also work with Boost child themes, including Moodle Core's Classic theme. However, we can't support any other theme than Boost.
-
-==OR==
-
-This plugin acts behind the scenes, therefore it should work with all Moodle themes.
-This plugin is developed and tested on Moodle Core's Boost theme.
-It should also work with Boost child themes, including Moodle Core's Classic theme. However, we can't support any other theme than Boost.
-
-
-Plugin repositories
--------------------
-
-This plugin is published and regularly updated in the Moodle plugins repository:
-http://moodle.org/plugins/view/[component_pluginname]
-
-==OR==
-
-This plugin is not published in the Moodle plugins repository.
-
-The latest development version can be found on Github:
-https://github.com/moodle-an-hochschulen/moodle-[component_pluginname]
-
-
-Bug and problem reports / Support requests
-------------------------------------------
-
-This plugin is carefully developed and thoroughly tested, but bugs and problems can always appear.
-
-Please report bugs and problems on Github:
-https://github.com/ralferlebach/moodle-[component_pluginname]/issues
-
-We will do our best to solve your problems, but please note that due to limited resources we can't always provide per-case support.
-
-
-Feature proposals
------------------
-
-Due to limited resources, the functionality of this plugin is primarily implemented for our own local needs and published as-is to the community. We are aware that members of the community will have other needs and would love to see them solved by this plugin.
-
-Please issue feature proposals on Github:
-https://github.com/ralferlebach/moodle-[component_pluginname]/issues
-
-Please create pull requests on Github:
-https://github.com/ralferlebach/moodle-[component_pluginname]/pulls
-
-We are always interested to read about your feature proposals or even get a pull request from you, but please accept that we can handle your issues only as feature _proposals_ and not as feature _requests_.
-
-
-Moodle release support
-----------------------
-
-Due to limited resources, this plugin is only maintained for the most recent major release of Moodle as well as the most recent LTS release of Moodle. Bugfixes are backported to the LTS release. However, new features and improvements are not necessarily backported to the LTS release.
-
-Apart from these maintained releases, previous versions of this plugin which work in legacy major releases of Moodle are still available as-is without any further updates in the Moodle Plugins repository.
-
-There may be several weeks after a new major release of Moodle has been published until we can do a compatibility check and fix problems if necessary. If you encounter problems with a new major release of Moodle - or can confirm that this plugin still works with a new major release - please let us know on Github.
-
-This plugin is designed to be compatible with all currently supported versions of Moodle, leveraging its latest APIs. However, if you are using a legacy version of Moodle, we kindly advise against installing or using this plugin. Instead, we strongly recommend updating your Moodle instance to a supported version to ensure security and compliance with current technological standards. Thank you for your understanding.
-
-
-Translating this plugin
------------------------
-
-This Moodle plugin is provided with English and German language packs only. Translations into other languages must be managed through AMOS (https://lang.moodle.org), where they will become part of Moodle's official language pack.
-
-As the plugin creator, we continue to maintain the German translation. For all other languages, we kindly ask you to contribute your translations directly in AMOS. These contributions will be reviewed by Moodle's official language pack maintainers before being included in the official repository.
-
-Thank you for supporting the global Moodle community!
-
-
-Right-to-left support
----------------------
-
-This plugin has not been tested with Moodle's support for right-to-left (RTL) languages.
-If you want to use this plugin with a RTL language and it doesn't work as-is, you are free to send us a pull request on Github with modifications.
-
-
-Maintainers
+Development
 -----------
 
-The plugin is maintained by\
-Ralf Erlebach (or any other given author or institution)
+[Environment and test setup](docs/environment-setup.md), [work plan](docs/Arbeitsplanung.md), specification:
+[Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md), [Technisches Blueprint](docs/Technisches_Blueprint.md).
+Changes: [CHANGELOG](CHANGELOG.md). The developer tools (`tools/`) are part of the repository, not of the
+release package.
 
 
-Copyright
----------
+Licence
+-------
 
-The copyright of this plugin is held by\
-Ralf Erlebach (or any other given author or institution)
-
-Individual copyrights of individual developers are tracked in PHPDoc comments and Git commits.
+GNU GPL v3 or later, matching Moodle itself.

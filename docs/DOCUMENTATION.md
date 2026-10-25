@@ -1,13 +1,14 @@
 # Documentation
 
-Keep the documents that outlive a single change here.
+Shipped with the plugin:
 
-* `prompt-templates/` — the prompts used to open and close a working session. The session-end
-  prompt is the useful one: it forces a written record before the session is over, when the
-  reasoning is still available.
-* `sessions/` — one file per session, never overwritten. What changed, which API contracts were
-  used, what was tested, and what remains open. The value shows up months later, when nobody
-  remembers why something was decided.
+* [Anforderungsmatrix.md](Anforderungsmatrix.md) - requirement by requirement: implemented, partly, not implemented, with tests.
+* [Testbericht-0.3.0.md](Testbericht-0.3.0.md) - what was actually run for 0.3.0, with versions and results.
+* [Berechtigungen.md](Berechtigungen.md) - who can configure, who is restricted, what the editor reveals.
+* [Datenschutz.md](Datenschutz.md) - data processing, Privacy API, rules as course configuration.
+* [Lastenheft.md](Lastenheft.md), [Pflichtenheft.md](Pflichtenheft.md), [Technisches_Blueprint.md](Technisches_Blueprint.md) - the specification (2026-10-24) and the implemented cache model.
+* [Arbeitsplanung.md](Arbeitsplanung.md) - plan, status per release, open decisions and risks.
+* [environment-setup.md](environment-setup.md) - how to set up the verification environment.
 
-Suggested further documents, depending on the project: a requirements document, a technical
-blueprint describing boundaries and public contracts, and a backlog.
+Repository only (not in the release package): `sessions/` (one file per working session) and
+`prompt-templates/` (session start and end prompts).
