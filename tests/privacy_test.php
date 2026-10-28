@@ -33,24 +33,105 @@ require_once(__DIR__ . '/fixtures/auc_testcase.php');
  */
 final class privacy_test extends auc_testcase {
     /**
-     * The plugin declares that it has no storage of its own, and the text says what rules can contain.
+     * The declaration lists the one table with personal data, with every column that refers to a person.
      */
     public function test_declaration(): void {
-        $this->assertTrue(is_a(privacy\provider::class, \core_privacy\local\metadata\null_provider::class, true));
-        $reason = get_string(privacy\provider::get_reason(), 'availability_usercriteria');
-        $this->assertStringContainsString('no tables of its own', $reason);
-        $this->assertStringContainsString('identifying values', $reason);
-        $this->assertStringContainsString('backups', $reason);
-        $string = [];
-        include(__DIR__ . '/../lang/de/availability_usercriteria.php');
-        $this->assertStringContainsString('sicherungen', $string[privacy\provider::get_reason()]);
+        $this->assertTrue(is_a(privacy\provider::class, \core_privacy\local\metadata\provider::class, true));
+        $this->assertTrue(is_a(privacy\provider::class, \core_privacy\local\request\core_userlist_provider::class, true));
+        $collection = privacy\provider::get_metadata(new \core_privacy\local\metadata\collection('availability_usercriteria'));
+        $items = $collection->get_collection();
+        $this->assertCount(1, $items);
+        $this->assertSame('availability_usercriteria_use', $items[0]->get_name());
+        $this->assertSame(
+            ['userid', 'courseid', 'seconds', 'sessions', 'firstaccess', 'lastevent', 'timemodified'],
+            array_keys($items[0]->get_privacy_fields())
+        );
+        $this->assertTrue((new \core_privacy\manager())->component_is_compliant('availability_usercriteria'));
     }
 
     /**
-     * The plugin has no tables of its own.
+     * Only the usage table refers to persons; the lists for relative criteria hold values only.
      */
-    public function test_no_tables(): void {
-        $this->assertFileDoesNotExist(__DIR__ . '/../db/install.xml');
+    public function test_tables(): void {
+        $xml = simplexml_load_file(__DIR__ . '/../db/install.xml');
+        $tables = [];
+        foreach ($xml->TABLES->TABLE as $table) {
+            $fields = [];
+            foreach ($table->FIELDS->FIELD as $field) {
+                $fields[] = (string) $field['NAME'];
+            }
+            $tables[(string) $table['NAME']] = $fields;
+        }
+        $this->assertSame(['availability_usercriteria_use', 'availability_usercriteria_dist'], array_keys($tables));
+        $this->assertContains('userid', $tables['availability_usercriteria_use']);
+        $this->assertNotContains('userid', $tables['availability_usercriteria_dist']);
+    }
+
+    /**
+     * Export and deletion of the usage data through the privacy API.
+     */
+    public function test_export_and_delete(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $other = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $second = $this->getDataGenerator()->create_user();
+        foreach ([[$user, $course], [$user, $other], [$second, $course]] as [$person, $where]) {
+            $DB->insert_record('availability_usercriteria_use', (object) ['userid' => $person->id, 'courseid' => $where->id,
+                'seconds' => 7200, 'sessions' => 3, 'firstaccess' => 1000000000, 'lastevent' => 1000003600,
+                'timemodified' => 1000003600]);
+        }
+        $context = \context_course::instance($course->id);
+
+        $contexts = privacy\provider::get_contexts_for_userid($user->id)->get_contextids();
+        $this->assertEqualsCanonicalizing([$context->id, \context_course::instance($other->id)->id], $contexts);
+        $userlist = new \core_privacy\local\request\userlist($context, 'availability_usercriteria');
+        privacy\provider::get_users_in_context($userlist);
+        $this->assertEqualsCanonicalizing([$user->id, $second->id], $userlist->get_userids());
+
+        $approved = new \core_privacy\local\request\approved_contextlist($user, 'availability_usercriteria', [$context->id]);
+        privacy\provider::export_user_data($approved);
+        $writer = \core_privacy\local\request\writer::with_context($context);
+        $data = $writer->get_data([get_string('privacy:path', 'availability_usercriteria')]);
+        $this->assertEquals(2.0, $data->usagehours);
+        $this->assertSame(3, $data->sessions);
+
+        privacy\provider::delete_data_for_user($approved);
+        $this->assertFalse($DB->record_exists('availability_usercriteria_use', ['userid' => $user->id, 'courseid' => $course->id]));
+        $this->assertTrue($DB->record_exists('availability_usercriteria_use', ['userid' => $user->id, 'courseid' => $other->id]));
+
+        privacy\provider::delete_data_for_users(new \core_privacy\local\request\approved_userlist(
+            $context,
+            'availability_usercriteria',
+            [$second->id]
+        ));
+        $this->assertSame(0, $DB->count_records('availability_usercriteria_use', ['courseid' => $course->id]));
+
+        privacy\provider::delete_data_for_all_users_in_context(\context_course::instance($other->id));
+        $this->assertSame(0, $DB->count_records('availability_usercriteria_use'));
+    }
+
+    /**
+     * Deleting a course or a person removes their stored data.
+     */
+    public function test_deleted_course_and_person(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $kept = $this->getDataGenerator()->create_user();
+        foreach ([$user, $kept] as $person) {
+            $DB->insert_record('availability_usercriteria_use', (object) ['userid' => $person->id, 'courseid' => $course->id,
+                'seconds' => 60, 'sessions' => 1, 'firstaccess' => 1, 'lastevent' => 61, 'timemodified' => 61]);
+        }
+        $DB->insert_record('availability_usercriteria_dist', (object) ['courseid' => $course->id, 'metric' => 'course_grade',
+            'vals' => '[1,2]', 'population' => 2, 'timecomputed' => 1]);
+        delete_user($user);
+        $this->assertSame(1, $DB->count_records('availability_usercriteria_use'));
+        delete_course($course, false);
+        $this->assertSame(0, $DB->count_records('availability_usercriteria_use'));
+        $this->assertSame(0, $DB->count_records('availability_usercriteria_dist'));
     }
 
     /**

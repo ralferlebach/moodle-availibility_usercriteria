@@ -44,7 +44,7 @@ if [ -f "$OUT/perf.md" ]; then
     echo
     echo "## Performance (tests/performance_test.php)"
     echo
-    echo "Lesezugriffe beim Aufbau einer Kursseite: ohne Beschränkung / mit 9 Bedingungen je Aktivität (+ durch das Plugin), Zeit ohne / mit."
+    echo "Lesezugriffe beim Aufbau einer Kursseite: ohne Beschränkung / mit 10 Bedingungen je Aktivität (davon eine relative) (+ durch das Plugin), Zeit ohne / mit."
     echo
     echo "| Moodle | Datenbank | 10 Aktivitäten | 100 Aktivitäten | 500 Aktivitäten |"
     echo "|---|---|---|---|---|"

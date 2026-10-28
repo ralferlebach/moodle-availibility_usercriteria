@@ -86,6 +86,8 @@ class reader {
                 return reader\grade::read($userid, $course);
             case 'activity':
                 return reader\activity::read($userid, $course);
+            case 'usage':
+                return reader\usage::read($feature['key'], $userid, $course);
         }
         return value::unavailable();
     }

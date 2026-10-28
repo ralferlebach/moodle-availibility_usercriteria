@@ -59,21 +59,54 @@ M.availability_usercriteria.form.findFeature = function(key) {
 };
 
 /**
- * Finds an operator definition for a feature type.
+ * Finds an operator definition offered for a feature.
  *
  * @method findOperator
- * @param {String} type Data type.
+ * @param {Object} feature Feature definition.
  * @param {String} op Operator key.
  * @return {Object|null} Definition or null.
  */
-M.availability_usercriteria.form.findOperator = function(type, op) {
-    var list = this.config.operators[type] || [];
+M.availability_usercriteria.form.findOperator = function(feature, op) {
+    var list = this.operatorList(feature);
     for (var i = 0; i < list.length; i++) {
         if (list[i].op === op) {
             return list[i];
         }
     }
     return null;
+};
+
+/**
+ * Whether an operator compares with the other participants.
+ *
+ * @method isRelative
+ * @param {String} op Operator key.
+ * @return {Boolean} True for a relative operator.
+ */
+M.availability_usercriteria.form.isRelative = function(op) {
+    var list = this.config.operators.relative || [];
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].op === op) {
+            return true;
+        }
+    }
+    return false;
+};
+
+/**
+ * The operators offered for a feature: those of its type, plus the relative operators for the features that
+ * can be compared with the other participants.
+ *
+ * @method operatorList
+ * @param {Object} feature Feature definition.
+ * @return {Array} Operator definitions.
+ */
+M.availability_usercriteria.form.operatorList = function(feature) {
+    var list = (this.config.operators[feature.type] || []).slice();
+    if (feature.relative) {
+        list = list.concat(this.config.operators.relative || []);
+    }
+    return list;
 };
 
 /**
@@ -259,7 +292,7 @@ M.availability_usercriteria.form.renderOperator = function(node, selected) {
     }
     var html = '<label><span class="accesshide">' + this.esc(this.config.labels.operator) +
             '</span><select name="op" class="form-select custom-select">';
-    var list = this.config.operators[feature.type] || [];
+    var list = this.operatorList(feature);
     for (var i = 0; i < list.length; i++) {
         html += '<option value="' + this.esc(list[i].op) + '">' + this.esc(list[i].label) + '</option>';
     }
@@ -287,9 +320,12 @@ M.availability_usercriteria.form.renderValues = function(node, json) {
         return;
     }
     var opNode = node.one('select[name=op]');
-    var operator = opNode ? this.findOperator(feature.type, opNode.get('value')) : null;
+    var operator = opNode ? this.findOperator(feature, opNode.get('value')) : null;
     var scope = feature.scope === 'course' ? this.config.labels.courseinfo : this.config.labels.siteinfo;
     var hintText = scope + (this.config.hints[feature.key] ? ' ' + this.config.hints[feature.key] : '');
+    if (operator && (operator.kind === 'count' || operator.kind === 'percent' || this.isRelative(operator.op))) {
+        hintText += ' ' + this.config.labels.relativeinfo;
+    }
     hint.setHTML(this.esc(hintText));
     if (!operator || operator.kind === 'none') {
         return;
@@ -310,10 +346,11 @@ M.availability_usercriteria.form.renderValues = function(node, json) {
         var inputType = isTime ? 'datetime-local' : 'text';
         var extra = isTime ? '' : ' inputmode="' + (feature.type === 'number' || operator.kind === 'days' ?
                 'decimal' : 'text') + '"';
+        var unit = {days: labels.days, count: labels.count, percent: labels.percent}[operator.kind];
         html = '<label><span class="accesshide">' + this.esc(operator.kind === 'days' ? labels.days : labels.value) +
                 '</span><input type="' + inputType + '" name="val" class="form-control"' + extra + '/></label>';
-        if (operator.kind === 'days') {
-            html += ' ' + this.esc(labels.days);
+        if (unit) {
+            html += ' ' + this.esc(unit);
         }
         if (operator.kind === 'pair') {
             html += ' <label><span class="accesshide">' + this.esc(labels.value2) + '</span><input type="' + inputType +
@@ -372,7 +409,7 @@ M.availability_usercriteria.form.fillValue = function(value, node) {
     var feature = this.findFeature(value.feature);
     var opNode = node.one('select[name=op]');
     value.op = opNode ? opNode.get('value') : '';
-    var operator = feature ? this.findOperator(feature.type, value.op) : null;
+    var operator = feature ? this.findOperator(feature, value.op) : null;
     if (!operator || operator.kind === 'none') {
         return;
     }
@@ -386,7 +423,8 @@ M.availability_usercriteria.form.fillValue = function(value, node) {
         if (isTime) {
             return self.fromInput(text);
         }
-        if (feature.type === 'number' || operator.kind === 'days' || operator.kind === 'pair') {
+        if (feature.type === 'number' || operator.kind === 'days' || operator.kind === 'pair' ||
+                operator.kind === 'count' || operator.kind === 'percent') {
             return self.parseNumber(text);
         }
         return text;
@@ -428,7 +466,7 @@ M.availability_usercriteria.form.fillErrors = function(errors, node) {
         errors.push('availability_usercriteria:error_selectfeature');
         return;
     }
-    var operator = this.findOperator(feature.type, value.op);
+    var operator = this.findOperator(feature, value.op);
     if (!operator) {
         errors.push('availability_usercriteria:error_selectoperator');
         return;
@@ -456,6 +494,10 @@ M.availability_usercriteria.form.fillErrors = function(errors, node) {
         errors.push('availability_usercriteria:error_backwardrange');
     } else if (operator.kind === 'days' && (value.val < 1 || value.val !== Math.floor(value.val))) {
         errors.push('availability_usercriteria:error_invaliddays');
+    } else if (operator.kind === 'count' && (value.val < 1 || value.val !== Math.floor(value.val))) {
+        errors.push('availability_usercriteria:error_invalidcount');
+    } else if (operator.kind === 'percent' && (value.val <= 0 || value.val > 100)) {
+        errors.push('availability_usercriteria:error_invalidpercent');
     }
 };
 

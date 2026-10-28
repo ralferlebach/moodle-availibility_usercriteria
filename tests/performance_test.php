@@ -69,6 +69,7 @@ final class performance_test extends auc_testcase {
             ['feature' => 'course_lastaccess', 'op' => 'missing'],
             ['feature' => 'completed_count', 'op' => 'gte', 'val' => 0],
             ['feature' => 'course_grade', 'op' => 'gte', 'val' => 50],
+            ['feature' => 'course_grade', 'op' => 'toppct', 'val' => 100],
         ];
         $children = [];
         foreach ($conditions as $condition) {
@@ -79,6 +80,8 @@ final class performance_test extends auc_testcase {
             $this->getDataGenerator()->create_module('page', ['course' => $course->id,
                 'completion' => COMPLETION_TRACKING_MANUAL] + ($restricted ? ['availability' => $availability] : []));
         }
+        // The comparison values exist before the page is rendered, as after the hourly task.
+        \availability_usercriteria\local\relative::compute((int) $course->id, \core\di::get(\core\clock::class)->time());
         return [$course, $user];
     }
 
@@ -122,9 +125,10 @@ final class performance_test extends auc_testcase {
             $results[$count] = ['moodle' => $basereads, 'with_plugin' => $reads, 'added' => $reads - $basereads,
                 'seconds_moodle' => round($baseseconds, 3), 'seconds_with_plugin' => round($seconds, 3)];
         }
-        // At most one read per characteristic (nine here) plus the custom field list, whatever the number of activities.
+        // A constant number of reads: one per characteristic (nine here; the grade reads its item and the grades), the
+        // custom field list and the comparison values - whatever the number of activities.
         foreach ($results as $count => $result) {
-            $this->assertLessThanOrEqual(10, $result['added'], "$count activities: " . json_encode($results));
+            $this->assertLessThanOrEqual(13, $result['added'], "$count activities: " . json_encode($results));
         }
         $this->assertSame($results[100]['added'], $results[500]['added'], json_encode($results));
         $file = getenv('AUC_PERF_REPORT');

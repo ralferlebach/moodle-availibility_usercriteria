@@ -1,6 +1,36 @@
 # Changelog
 
+## 0.4.0 - 2026-10-28 (alpha)
+
+Open requirements of the Lastenheft/Pflichtenheft completed.
+
+New characteristics and operators
+- Usage time in the course (L-09): estimated from the standard log (sessions with pauses of at most 30 minutes;
+  a lower estimate), aggregated incrementally by a scheduled task every 10 minutes; pages never read the log.
+- Time from the first logged course access to course completion (L-10), in days.
+- Relative criteria (L-11) for course grade, completed activities and usage time: among the best/lowest N, the
+  highest/lowest, among the top/bottom P %. Compared with the participants of the course (active enrolment and a
+  participant role); values of the others computed hourly and stored without reference to persons; ties share the
+  better position; lists older than 3 hours decide nothing.
+- Plugin setting "Participant roles" (default: student).
+
+Fixes
+- Course grade conditions broke the course page (HTTP 500, undefined GRADE_TYPE_VALUE) as soon as the course had a
+  gradebook: a course page does not load gradelib. Present since 0.2.0, found by the new parallel load test;
+  regression covered by a Behat scenario.
+- Backup and restore: role ids and user ids (equal/not equal) in rules are mapped to the target site.
+
+Other
+- Teachers see why a rule cannot be evaluated in a course ("Cannot be evaluated here: ..."), never data of people.
+- Privacy: full provider for the new usage table (export, deletion per person, list and course).
+- Deleted courses and people take their stored data with them.
+- Catalog definitions built once per request: evaluating 900 conditions on one page takes 0.04 s instead of 0.09 s.
+- Tests: 230 PHPUnit tests (0.3.0: 208), 9 Behat scenarios (0.3.0: 5), parallel load test (tools/load).
+
 ## 0.3.0 - 2026-10-25 (alpha)
+
+CI fix after the first GitHub run: the MariaDB service health check uses `mariadb-admin` (the 11.4 image has
+no `mysqladmin`, so the Moodle 5.3 / MariaDB job could not start). Plugin code unchanged.
 
 Rework after the re-audit of 0.2.0 (AUC_ReAudit_0.2.0). Not yet accepted for production.
 

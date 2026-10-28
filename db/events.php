@@ -61,3 +61,14 @@ foreach (['created', 'updated', 'deleted'] as $change) {
         'internal' => true,
     ];
 }
+// Stored usage data and lists do not outlive their course or person.
+$observers[] = [
+    'eventname' => '\core\event\course_deleted',
+    'callback' => '\availability_usercriteria\local\cache_observer::course_deleted',
+    'internal' => true,
+];
+$observers[] = [
+    'eventname' => '\core\event\user_deleted',
+    'callback' => '\availability_usercriteria\local\cache_observer::user_deleted',
+    'internal' => true,
+];

@@ -65,20 +65,57 @@ class catalog {
      * @return string[]
      */
     public static function all_operators(): array {
-        return array_values(array_unique(array_merge(...array_values(self::operators()))));
+        static $all = null;
+        if ($all === null) {
+            $all = array_values(array_unique(array_merge(relative::OPERATORS, ...array_values(self::operators()))));
+        }
+        return $all;
+    }
+
+    /**
+     * Whether a characteristic accepts an operator: the operators of its type, and the relative operators for the
+     * characteristics that can be compared with the other participants.
+     *
+     * @param array $feature Catalog definition.
+     * @param string $operator Operator key.
+     * @return bool
+     */
+    public static function allows(array $feature, string $operator): bool {
+        if (in_array($operator, self::operators()[$feature['type']] ?? [], true)) {
+            return true;
+        }
+        return !empty($feature['relative']) && in_array($operator, relative::OPERATORS, true);
+    }
+
+    /**
+     * Whether an operator compares with the other participants.
+     *
+     * @param string $operator Operator key.
+     * @return bool
+     */
+    public static function is_relative(string $operator): bool {
+        return in_array($operator, relative::OPERATORS, true);
     }
 
     /**
      * The kind of operand an operator takes.
      *
      * @param string $operator Operator key.
-     * @return string none, single, pair, list or days.
+     * @return string none, single, pair, list, days, count or percent.
      */
     public static function operand_kind(string $operator): string {
         switch ($operator) {
             case 'missing':
             case 'present':
+            case 'max':
+            case 'min':
                 return 'none';
+            case 'best':
+            case 'worst':
+                return 'count';
+            case 'toppct':
+            case 'bottompct':
+                return 'percent';
             case 'between':
                 return 'pair';
             case 'in':
@@ -98,6 +135,11 @@ class catalog {
      * @return array Key => definition.
      */
     private static function builtin(): array {
+        // Pure definitions without strings or data: built once per request, not once per evaluated condition.
+        static $built = null;
+        if ($built !== null) {
+            return $built;
+        }
         $defs = [
             'user_id' => ['identity', 'number', self::SITE, 'user'],
             'user_username' => ['identity', 'text', self::SITE, 'user'],
@@ -113,6 +155,8 @@ class catalog {
             'completed_count' => ['progress', 'number', self::COURSE, 'completion'],
             'finished_count' => ['progress', 'number', self::COURSE, 'completion'],
             'course_grade' => ['progress', 'number', self::COURSE, 'grade'],
+            'usage_time' => ['activity', 'number', self::COURSE, 'usage'],
+            'completion_duration' => ['progress', 'number', self::COURSE, 'usage'],
         ];
         foreach (self::STANDARD_PROFILE as $name) {
             $defs['user_' . $name] = ['profile', 'text', self::SITE, 'user'];
@@ -125,8 +169,10 @@ class catalog {
                 'type' => $type,
                 'scope' => $scope,
                 'source' => $source,
+                'relative' => in_array($key, relative::METRICS, true),
             ];
         }
+        $built = $result;
         return $result;
     }
 

@@ -151,3 +151,27 @@ Entscheidungen, die Freigabe brauchen:
 
 Offen: GitHub-Actions-Lauf (nicht gepusht), PHPDoc-Check und `validate` nur in der CI, Behat auf 5.0–5.2 und
 MariaDB, Last mit parallelen Zugriffen, Backup/Restore einer Regel, rechtliche Datenschutzbewertung.
+
+## Stand 0.4.0 (2026-10-28)
+
+Auftrag: „Was ist aus Lasten- und Pflichtenheft noch offen? Bitte nachziehen.“ Alle offenen Punkte sind umgesetzt
+(Übersicht: [Anforderungsmatrix](Anforderungsmatrix.md)).
+
+Entscheidungen des Auftraggebers (28.10.2026):
+1. L-09 Nutzungsdauer: eigene Schätzung aus dem Standard-Log, Sitzungslücke 30 min, geplante Aufgabe.
+2. L-10 Start der Bearbeitungsdauer: erster im Log nachweisbarer Kurszugriff; Ende: Kursabschluss.
+3. L-11 Vergleichspopulation: Teilnehmende des Kurses; Teilnehmerrolle(n) als Plugin-Einstellung, Standard `student`.
+4. L-11 anwendbar auf Kursbewertung, abgeschlossene Aktivitäten, Nutzungsdauer.
+
+Von mir festgelegt (bitte bestätigen):
+- Sitzungslücke 30 min fest (keine Einstellung); Zeit nach dem letzten Klick einer Sitzung zählt nicht.
+- Gezählt werden Log-Ereignisse aus Browser und Web-Service, nicht aus der Kommandozeile und nicht bei „Anmelden als“.
+- Vergleichslisten stündlich; älter als 3 h = nicht entscheidbar; Gleichstand = bessere Position.
+- Personen ohne Wert (z. B. unbenotet) zählen nicht zur Vergleichsmenge der Kursbewertung; bei Abschlüssen und
+  Nutzungsdauer zählt 0 mit.
+
+Dabei gefunden und behoben: Absturz der Kursseite bei Notenbedingungen in Kursen mit Bewertungen (seit 0.2.0);
+fehlendes ID-Mapping beim Wiederherstellen von Sicherungen; ungecachte Rollenabfrage bei relativen Regeln.
+
+Offen: GitHub-Actions-Lauf dieser Fassung (nicht gepusht), rechtliche Datenschutzbewertung (jetzt mit
+personenbezogener Tabelle), Behat auf 5.0–5.2 und MariaDB.

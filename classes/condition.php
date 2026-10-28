@@ -19,6 +19,8 @@ namespace availability_usercriteria;
 use availability_usercriteria\local\catalog;
 use availability_usercriteria\local\comparator;
 use availability_usercriteria\local\reader;
+use availability_usercriteria\local\relative;
+use availability_usercriteria\local\usage;
 
 /**
  * One atomic user criterion: characteristic, operator and operand.
@@ -107,6 +109,20 @@ class condition extends \core_availability\condition {
                     throw new \coding_exception('Invalid number of days for usercriteria condition');
                 }
                 $this->operand = $days;
+                break;
+            case 'count':
+                $count = self::require_number($structure, 'val');
+                if (!is_int($count) || $count < 1) {
+                    throw new \coding_exception('Invalid number of people for usercriteria condition');
+                }
+                $this->operand = $count;
+                break;
+            case 'percent':
+                $percent = self::require_number($structure, 'val');
+                if ($percent <= 0 || $percent > 100) {
+                    throw new \coding_exception('Invalid percentage for usercriteria condition');
+                }
+                $this->operand = $percent;
                 break;
             case 'list':
                 if (!isset($structure->val) || !is_array($structure->val) || !$structure->val) {
@@ -211,12 +227,15 @@ class condition extends \core_availability\condition {
      */
     public function evaluate(\stdClass $course, int $userid): ?bool {
         $feature = catalog::get($this->feature);
-        if ($feature === null || !in_array($this->operator, catalog::operators()[$feature['type']], true)) {
+        if ($feature === null || !catalog::allows($feature, $this->operator)) {
             return null;
         }
         // The only source of time in this plugin: the clock API, so that tests can freeze and move it.
         $now = \core\di::get(\core\clock::class)->time();
         $value = reader::read($feature, $userid, $course, $now);
+        if (catalog::is_relative($this->operator)) {
+            return relative::evaluate($this->feature, $this->operator, $this->operand, $value, $userid, $course, $now);
+        }
         return comparator::evaluate(
             $feature['type'],
             $this->operator,
@@ -245,7 +264,59 @@ class condition extends \core_availability\condition {
         } else {
             $text = $this->describe($info);
         }
-        return $not ? get_string('desc_not', 'availability_usercriteria', $text) : $text;
+        $text = $not ? get_string('desc_not', 'availability_usercriteria', $text) : $text;
+        // Teachers see why a rule cannot be evaluated here; the reason concerns the site or course, never a person.
+        $problem = $full ? $this->diagnose($info->get_course()) : null;
+        if ($problem !== null) {
+            $reason = get_string('diag_' . $problem, 'availability_usercriteria');
+            $text .= ' ' . get_string('diag', 'availability_usercriteria', $reason);
+        }
+        return $text;
+    }
+
+    /**
+     * Why the rule cannot be evaluated for anybody in this course, if it cannot.
+     *
+     * @param \stdClass $course Course.
+     * @return string|null Reason key (diag_...), or null if the rule can be evaluated.
+     */
+    public function diagnose(\stdClass $course): ?string {
+        global $CFG;
+        $feature = catalog::get($this->feature);
+        if ($feature === null) {
+            return 'unknownfeature';
+        }
+        if (!catalog::allows($feature, $this->operator)) {
+            return 'unknownoperator';
+        }
+        if ($feature['source'] === 'completion' || $this->feature === 'completion_duration') {
+            require_once($CFG->libdir . '/completionlib.php');
+            $completion = new \completion_info($course);
+            if (!$completion->is_enabled()) {
+                return 'nocompletion';
+            }
+            if ($this->feature === 'completion_duration' && !$completion->has_criteria()) {
+                return 'nocoursecompletion';
+            }
+        }
+        if ($feature['source'] === 'usage' || ($this->feature === 'usage_time')) {
+            if (!usage::log_enabled()) {
+                return 'nolog';
+            }
+            if (!usage::is_tracking()) {
+                return 'notprocessed';
+            }
+        }
+        if (catalog::is_relative($this->operator)) {
+            if (!local\population::role_ids()) {
+                return 'noparticipantroles';
+            }
+            $now = \core\di::get(\core\clock::class)->time();
+            if (relative::values((int) $course->id, $this->feature, $now) === null) {
+                return 'nolist';
+            }
+        }
+        return null;
     }
 
     /**
@@ -278,6 +349,12 @@ class condition extends \core_availability\condition {
                 break;
             case 'days':
                 $a->operand = get_string('desc_days', 'availability_usercriteria', $this->operand);
+                break;
+            case 'count':
+                $a->operand = get_string('desc_count', 'availability_usercriteria', $this->operand);
+                break;
+            case 'percent':
+                $a->operand = get_string('desc_percent', 'availability_usercriteria', format_float($this->operand, -1));
                 break;
             case 'list':
                 $items = array_map(fn($item) => $this->format_operand($item, $type, $feature, $info), $this->operand);
@@ -319,6 +396,68 @@ class condition extends \core_availability\condition {
             return $feature['options'][(string) $operand];
         }
         return s((string) $operand);
+    }
+
+    /**
+     * Rewrite ids of the source site after a course restore.
+     *
+     * Role ids ("is one of" for roles) are mapped to the roles the restore chose on this site. A user id compared
+     * for equality is mapped to the restored person. Anything that cannot be mapped is kept and reported to the
+     * restore log: an id unknown on this site matches nobody, so the rule closes rather than opens.
+     *
+     * @param string $restoreid Restore id.
+     * @param int $courseid Target course id.
+     * @param \base_logger $logger Restore logger.
+     * @param string $name Name of the restored item, for messages.
+     * @return bool Whether the condition changed.
+     */
+    public function update_after_restore($restoreid, $courseid, \base_logger $logger, $name) {
+        global $DB;
+        $changed = false;
+        if (strpos($this->feature, 'role_') === 0 && is_array($this->operand)) {
+            $mapped = [];
+            foreach ($this->operand as $roleid) {
+                $record = \restore_dbops::get_backup_ids_record($restoreid, 'role', (int) $roleid);
+                if ($record && $record->newitemid) {
+                    $mapped[] = (string) (int) $record->newitemid;
+                    $changed = $changed || (int) $record->newitemid !== (int) $roleid;
+                } else {
+                    $mapped[] = (string) $roleid;
+                    if (!$DB->record_exists('role', ['id' => (int) $roleid])) {
+                        $logger->process('Restored item (' . $name . ') has a user criteria condition on a role that was not '
+                            . 'restored', \backup::LOG_WARNING);
+                    }
+                }
+            }
+            $this->operand = $mapped;
+        } else if ($this->feature === 'user_id') {
+            if (in_array($this->operator, ['eq', 'ne'], true)) {
+                $record = \restore_dbops::get_backup_ids_record($restoreid, 'user', (int) $this->operand);
+                if ($record && $record->newitemid) {
+                    $changed = (int) $record->newitemid !== (int) $this->operand;
+                    $this->operand = (int) $record->newitemid;
+                } else if (!$DB->record_exists('user', ['id' => (int) $this->operand, 'deleted' => 0])) {
+                    $logger->process('Restored item (' . $name . ') has a user criteria condition on a person that was '
+                        . 'not restored', \backup::LOG_WARNING);
+                }
+            } else if (!in_array($this->operator, ['missing', 'present'], true)) {
+                $logger->process('Restored item (' . $name . ') compares user ids by range; ids of the source site are '
+                    . 'not mapped', \backup::LOG_WARNING);
+            }
+        }
+        return $changed;
+    }
+
+    /**
+     * No dependency on other course modules or sections.
+     *
+     * @param string $table Table name.
+     * @param int $oldid Previous id.
+     * @param int $newid New id.
+     * @return bool False: nothing changes.
+     */
+    public function update_dependency_id($table, $oldid, $newid) {
+        return false;
     }
 
     /**

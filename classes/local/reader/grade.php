@@ -49,33 +49,66 @@ class grade {
      * @return value
      */
     public static function read(int $userid, \stdClass $course): value {
-        global $DB;
-        $sql = "SELECT gi.id, gi.gradetype, gi.grademin, gi.grademax, gi.needsupdate,
-                       gg.finalgrade, gg.rawgrademin, gg.rawgrademax
-                  FROM {grade_items} gi
-             LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :userid
-                 WHERE gi.courseid = :courseid AND gi.itemtype = :itemtype";
-        $row = $DB->get_record_sql($sql, [
-            'userid' => $userid,
-            'courseid' => $course->id,
-            'itemtype' => 'course',
-        ]);
-        if (!$row || !empty($row->needsupdate) || !in_array((int) $row->gradetype, [GRADE_TYPE_VALUE, GRADE_TYPE_SCALE], true)) {
-            return value::unavailable();
+        return self::read_many([$userid], $course)[$userid];
+    }
+
+    /**
+     * Read the normalised course total of several people with one query per 1000 people.
+     *
+     * @param int[] $userids User ids.
+     * @param \stdClass $course The course.
+     * @return value[] User id => value.
+     */
+    public static function read_many(array $userids, \stdClass $course): array {
+        global $CFG, $DB;
+        // The grade constants live in gradelib, which a course page does not load by itself.
+        require_once($CFG->libdir . '/gradelib.php');
+        $result = [];
+        $item = $DB->get_record(
+            'grade_items',
+            ['courseid' => $course->id, 'itemtype' => 'course'],
+            'id, gradetype, grademin, grademax, needsupdate'
+        );
+        if (!$item || !empty($item->needsupdate) || !in_array((int) $item->gradetype, [GRADE_TYPE_VALUE, GRADE_TYPE_SCALE], true)) {
+            return array_fill_keys($userids, value::unavailable());
         }
-        if ($row->finalgrade === null) {
+        foreach (array_chunk($userids, 1000) as $chunk) {
+            [$insql, $params] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'u');
+            $grades = $DB->get_records_select(
+                'grade_grades',
+                "itemid = :itemid AND userid $insql",
+                $params + ['itemid' => $item->id],
+                '',
+                'userid, finalgrade, rawgrademin, rawgrademax'
+            );
+            foreach ($chunk as $userid) {
+                $result[$userid] = self::normalise($item, $grades[$userid] ?? null);
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Turn one stored grade into a percentage.
+     *
+     * @param \stdClass $item Course total item.
+     * @param \stdClass|null $grade Grade row of the person, if any.
+     * @return value
+     */
+    private static function normalise(\stdClass $item, ?\stdClass $grade): value {
+        if (!$grade || $grade->finalgrade === null) {
             return value::missing();
         }
-        $min = $row->rawgrademin;
-        $max = $row->rawgrademax;
+        $min = $grade->rawgrademin;
+        $max = $grade->rawgrademax;
         if ($min === null || $max === null || (float) $max <= (float) $min) {
-            $min = $row->grademin;
-            $max = $row->grademax;
+            $min = $item->grademin;
+            $max = $item->grademax;
         }
         $range = (float) $max - (float) $min;
         if ($range <= 0) {
             return value::unavailable();
         }
-        return value::of(((float) $row->finalgrade - (float) $min) / $range * 100);
+        return value::of(((float) $grade->finalgrade - (float) $min) / $range * 100);
     }
 }

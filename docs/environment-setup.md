@@ -268,6 +268,25 @@ neu anlegen.
 
 ---
 
+## 8b. Paralleler Lasttest (neu, 0.4.0)
+
+Die 4.5-Entwicklungsseite (`wwwroot` `http://localhost:8080`) bekommt in Apache einen eigenen VirtualHost auf
+Port 8080. Dann:
+
+    php tools/load/seed_course.php --moodle=/home/claude/moodle405 --students=30 --activities=100          # mit Regeln
+    php tools/load/seed_course.php --moodle=/home/claude/moodle405 --students=30 --activities=100 --plain  # Vergleich
+    chmod -R a+rwX /home/claude/moodledata405
+    tools/load/parallel.sh http://localhost:8080 <courseid> <user1,user2,...> 10
+
+`parallel.sh` meldet jede Person einzeln an und ruft die Kursseite mit allen gleichzeitig auf (Fehler,
+Median, 95. Perzentil, Maximum). Zuerst je einen Aufruf zum Aufwärmen machen.
+
+**Nach einem Container-Neustart** laufen PostgreSQL, MariaDB 11.4, Apache und ChromeDriver nicht mehr:
+`pg_ctlcluster 16 main start`, `pg_ctlcluster 17 main start`, `service mariadb start`, `mariadbd` für 11.4 (siehe
+oben), `apache2ctl start`; ChromeDriver als Hintergrundprozess, der die Sitzung überdauert.
+
+---
+
 ## 9. Typische Stolpersteine
 
 - **`No tests executed!`** → `--testsuite availability_usercriteria_testsuite` statt Verzeichnis.
@@ -285,3 +304,5 @@ neu anlegen.
   auf 4.5, brach aber auf 5.3 mit „Class grade_item not found“ ab.
 - **Docblock-Falle**: neue Methode vor einer privaten Methode eingefügt → verwaister Docblock → phpcs
   „Missing docblock“. Nach Einfügungen phpcs laufen lassen.
+- **CI: `mariadb:11.4` „unhealthy“** obwohl der Server läuft → Ab MariaDB 11 enthält das Docker-Image kein
+  `mysqladmin` mehr. Health-Check `mariadb-admin ping -h 127.0.0.1 --silent` verwenden (auch in 10.11 vorhanden).

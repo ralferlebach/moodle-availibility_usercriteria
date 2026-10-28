@@ -90,6 +90,8 @@ Definition der benutzerdefinierten Profilfelder. Nichts überdauert die Anfrage.
 | Letzter Site-Login | einmal je Anfrage | Anfrageende | `user_loggedin` |
 | Letzter Kurszugriff | einmal je Anfrage | Anfrageende | – (Core schreibt ohne Ereignis; der gespeicherte Wert kann den laufenden Besuch schon enthalten) |
 | Abschlusszähler | einmal je Anfrage | Anfrageende | `course_module_completion_updated`, `course_module_updated` |
+| Nutzungsdauer, erster Zugriff (0.4.0) | einmal je Anfrage | Anfrageende | – (ändert sich nur durch die geplante Aufgabe, Stand ≤ 10 min) |
+| Vergleichsliste relativer Kriterien (0.4.0) | einmal je Anfrage und Kurs/Merkmal | Anfrageende; älter als 3 h = nicht entscheidbar | geplante Aufgabe stündlich, bei fehlender/alter Liste Ad-hoc-Aufgabe |
 | Kursbewertung | einmal je Anfrage | Anfrageende | `user_graded`, `grade_deleted`, `grade_item_updated/deleted` |
 
 Der Observer (`classes/local/cache_observer.php`, `db/events.php`) verwirft bei jedem dieser Ereignisse den
@@ -99,3 +101,35 @@ gelesenen Daten so. Nachweis: `tests/cache_test.php`, `tests/clock_source_test.p
 
 Zeitquelle: ausschließlich `\core\di::get(\core\clock::class)`; erzwungen durch `tests/clock_usage_test.php`
 (PHP und Editor-JavaScript, inkl. dynamischer Aufrufe und Negativproben).
+
+## 12. Umgesetzt in 0.4.0: Nutzungsdauer, Bearbeitungsdauer, relative Kriterien
+
+**Log-Aufbereitung** (`classes/local/usage.php`, Aufgabe `update_usage` alle 10 min): liest neue Einträge von
+`logstore_standard_log` ab der zuletzt verarbeiteten ID in Blöcken (20 000 je Abfrage, höchstens 500 000 je Lauf).
+Gezählt werden Ereignisse mit Person, Kurs (nicht Startseite), Herkunft `web`/`ws`, ohne „Anmelden als“, nicht
+anonym. Je Person und Kurs: Lücken ≤ 1800 s zwischen aufeinanderfolgenden Ereignissen summiert (Sitzung), längere
+Pause = neue Sitzung, erstes Ereignis = erster Zugriff. Standard-Logspeicher aus oder Aufgabe nie gelaufen → nicht
+entscheidbar.
+
+**Bearbeitungsdauer** (`completion_duration`): `course_completions.timecompleted` − erster Zugriff, in Tagen.
+Nicht abgeschlossen oder Abschluss vor dem ersten bekannten Zugriff → fehlend. Kein Kursabschluss mit Kriterien →
+nicht entscheidbar.
+
+**Relative Kriterien** (`classes/local/relative.php`, `population.php`): Operatoren `best`, `worst` (N),
+`max`, `min`, `toppct`, `bottompct` (P) für `course_grade`, `completed_count`, `usage_time`. Population: aktive
+Einschreibung (wie Einschreibemerkmale) und eine im Kurs zugewiesene Teilnehmerrolle (Einstellung, Standard
+Archetyp `student`). Aufgabe `update_distributions` (stündlich) berechnet nur Kurse, deren Regeln relative
+Operatoren enthalten, und speichert je Merkmal die aufsteigend sortierten Werte (JSON) ohne Nutzer-IDs. Auswertung:
+eigener Wert aktuell, Position per Binärsuche (bessere = Werte darüber, Gleichstand teilt die bessere Position);
+`best N`: besser + 1 ≤ N; `toppct P`: besser + 1 ≤ ⌈P/100 · n⌉. Eine seit der Berechnung geänderte eigene Note
+kann die Position nur um eins verschlechtern, nie verbessern. Fehlt die Liste oder ist sie älter als 3 h:
+nicht entscheidbar, und eine Ad-hoc-Berechnung wird angestoßen.
+
+**Diagnose für Lehrende** (`condition::diagnose`): In der vollen Beschreibung erscheint „Hier nicht auswertbar: …“
+mit einem Grund der Seite oder des Kurses (unbekanntes Merkmal, Abschlussverfolgung aus, kein Kursabschluss,
+Log aus/nicht verarbeitet, keine Teilnehmerrollen, Liste wird berechnet), nie mit Personendaten.
+
+**Restore** (`condition::update_after_restore`): Rollen-IDs und Nutzer-IDs (bei gleich/ungleich) werden über die
+Restore-Zuordnung umgeschrieben; nicht zuordenbare werden behalten und ins Restore-Protokoll geschrieben (eine
+unbekannte ID passt auf niemanden: die Regel schließt eher, als dass sie öffnet).
+

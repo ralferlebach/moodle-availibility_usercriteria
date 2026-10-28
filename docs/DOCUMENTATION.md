@@ -3,7 +3,8 @@
 Shipped with the plugin:
 
 * [Anforderungsmatrix.md](Anforderungsmatrix.md) - requirement by requirement: implemented, partly, not implemented, with tests.
-* [Testbericht-0.3.0.md](Testbericht-0.3.0.md) - what was actually run for 0.3.0, with versions and results.
+* [Testbericht-0.4.0.md](Testbericht-0.4.0.md) - what was actually run for 0.4.0, with versions and results
+  ([0.3.0](Testbericht-0.3.0.md)).
 * [Berechtigungen.md](Berechtigungen.md) - who can configure, who is restricted, what the editor reveals.
 * [Datenschutz.md](Datenschutz.md) - data processing, Privacy API, rules as course configuration.
 * [Lastenheft.md](Lastenheft.md), [Pflichtenheft.md](Pflichtenheft.md), [Technisches_Blueprint.md](Technisches_Blueprint.md) - the specification (2026-10-24) and the implemented cache model.

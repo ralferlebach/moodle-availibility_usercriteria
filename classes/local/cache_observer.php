@@ -51,4 +51,25 @@ class cache_observer {
         \cache::make('availability_usercriteria', 'fields')->purge();
         \cache::make('availability_usercriteria', 'values')->purge();
     }
+
+    /**
+     * Remove the stored usage data and lists of a deleted course.
+     *
+     * @param \core\event\course_deleted $event The event.
+     */
+    public static function course_deleted(\core\event\course_deleted $event): void {
+        global $DB;
+        $DB->delete_records(usage::TABLE, ['courseid' => $event->objectid]);
+        $DB->delete_records(relative::TABLE, ['courseid' => $event->objectid]);
+    }
+
+    /**
+     * Remove the stored usage data of a deleted person.
+     *
+     * @param \core\event\user_deleted $event The event.
+     */
+    public static function user_deleted(\core\event\user_deleted $event): void {
+        global $DB;
+        $DB->delete_records(usage::TABLE, ['userid' => $event->objectid]);
+    }
 }

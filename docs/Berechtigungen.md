@@ -1,6 +1,6 @@
 # Berechtigungen – availability_usercriteria (AUC)
 
-**Stand:** 0.3.0 (25.10.2026) · Nachweis: `tests/permissions_test.php`, `tests/behat/usercriteria.feature`
+**Stand:** 0.4.0 (28.10.2026) · Nachweis: `tests/permissions_test.php`, `tests/behat/usercriteria.feature`
 
 ## Entscheidung
 
@@ -52,3 +52,12 @@ Einrichtung gelten unverändert, weil AUC nur die Core-Prüfungen nutzt.
 - Bei Identitäts- und Kontaktmerkmalen nur: „Ihre Nutzerdaten erfüllen ein von der Lehrperson festgelegtes
   Kriterium“, ohne Wert (Behat-Szenario „A restriction naming a person does not show the value to students“).
 - Fehlermeldungen zu fehlerhaften Regeln enthalten keine Werte (`test_error_messages_contain_no_values`).
+
+## Plugin-Einstellung (Administration)
+
+*Website-Administration > Plugins > Verfügbarkeitsbedingungen > Nutzerkriterien > Teilnehmerrollen*
+(`availability_usercriteria/participantroles`, Recht `moodle/site:config`): Rollen, deren Inhaber*innen bei
+relativen Kriterien als Teilnehmende zählen. Standard: die Rollen mit dem Archetyp `student` (Moodle-Standardrolle
+„Teilnehmer/in“). Ist keine Rolle gewählt, sind relative Kriterien nicht auswertbar; Lehrende sehen das als
+Diagnosehinweis. Wer nicht Teilnehmende*r ist (z. B. Trainer/in), erfüllt eine relative Bedingung nie.
+

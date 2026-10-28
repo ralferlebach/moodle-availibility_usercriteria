@@ -48,10 +48,22 @@ class completion {
      * @return value
      */
     public static function read(string $key, int $userid, \stdClass $course): value {
+        return self::read_many($key, [$userid], $course)[$userid];
+    }
+
+    /**
+     * Read the number of completed or finished activities of several people.
+     *
+     * @param string $key completed_count or finished_count.
+     * @param int[] $userids User ids.
+     * @param \stdClass $course The course.
+     * @return value[] User id => value.
+     */
+    public static function read_many(string $key, array $userids, \stdClass $course): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/completionlib.php');
         if ((int) $course->id === SITEID || !(new \completion_info($course))->is_enabled()) {
-            return value::unavailable();
+            return array_fill_keys($userids, value::unavailable());
         }
         $cmids = [];
         foreach (get_fast_modinfo($course)->get_cms() as $cm) {
@@ -63,17 +75,24 @@ class completion {
         if ($key === 'finished_count') {
             $states[] = COMPLETION_COMPLETE_FAIL;
         }
-        $count = 0;
-        foreach (array_chunk($cmids, self::CHUNK) as $chunk) {
-            [$cminsql, $cmparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'cm');
-            [$statesql, $stateparams] = $DB->get_in_or_equal($states, SQL_PARAMS_NAMED, 'st');
-            $count += $DB->count_records_sql(
-                "SELECT COUNT(1)
-                   FROM {course_modules_completion} cmc
-                  WHERE cmc.userid = :userid AND cmc.coursemoduleid $cminsql AND cmc.completionstate $statesql",
-                ['userid' => $userid] + $cmparams + $stateparams
-            );
+        $counts = array_fill_keys($userids, 0);
+        foreach (array_chunk($userids, self::CHUNK) as $users) {
+            foreach (array_chunk($cmids, self::CHUNK) as $chunk) {
+                [$usersql, $userparams] = $DB->get_in_or_equal($users, SQL_PARAMS_NAMED, 'u');
+                [$cminsql, $cmparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'cm');
+                [$statesql, $stateparams] = $DB->get_in_or_equal($states, SQL_PARAMS_NAMED, 'st');
+                $rows = $DB->get_records_sql_menu(
+                    "SELECT cmc.userid, COUNT(1)
+                       FROM {course_modules_completion} cmc
+                      WHERE cmc.userid $usersql AND cmc.coursemoduleid $cminsql AND cmc.completionstate $statesql
+                   GROUP BY cmc.userid",
+                    $userparams + $cmparams + $stateparams
+                );
+                foreach ($rows as $userid => $count) {
+                    $counts[(int) $userid] += (int) $count;
+                }
+            }
         }
-        return value::of($count);
+        return array_map(fn($count) => value::of($count), $counts);
     }
 }

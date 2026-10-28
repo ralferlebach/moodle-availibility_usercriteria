@@ -57,6 +57,7 @@ class frontend extends \core_availability\frontend {
                 'category' => $def['category'],
                 'type' => $def['type'],
                 'scope' => $def['scope'],
+                'relative' => !empty($def['relative']),
             ];
             if (isset($def['options'])) {
                 $options[$key] = self::to_list($def['options']);
@@ -74,7 +75,7 @@ class frontend extends \core_availability\frontend {
         $options['enrol_method'] = $methods;
 
         $operators = [];
-        foreach (catalog::operators() as $type => $list) {
+        foreach (catalog::operators() + ['relative' => \availability_usercriteria\local\relative::OPERATORS] as $type => $list) {
             foreach ($list as $operator) {
                 $operators[$type][] = [
                     'op' => $operator,
@@ -88,12 +89,15 @@ class frontend extends \core_availability\frontend {
             $categories[$category] = get_string('cat_' . $category, $component);
         }
         $hints = [];
-        $hinted = ['course_grade', 'completed_count', 'finished_count', 'course_lastaccess', 'enrol_start', 'site_lastlogin'];
+        $hinted = ['course_grade', 'completed_count', 'finished_count', 'course_lastaccess', 'enrol_start', 'site_lastlogin',
+            'usage_time', 'completion_duration'];
         foreach ($hinted as $key) {
             $hints[$key] = get_string('hint_' . $key, $component);
         }
         $labels = [];
-        foreach (['feature', 'operator', 'value', 'value2', 'choose', 'days', 'siteinfo', 'courseinfo', 'bounds'] as $name) {
+        $names = ['feature', 'operator', 'value', 'value2', 'choose', 'days', 'siteinfo', 'courseinfo', 'bounds', 'count',
+            'percent', 'relativeinfo'];
+        foreach ($names as $name) {
             $labels[$name] = get_string('editor_' . $name, $component);
         }
         $bounds = [];
